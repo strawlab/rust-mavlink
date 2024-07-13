@@ -11,6 +11,9 @@ mod udp;
 #[cfg(feature = "direct-serial")]
 mod direct_serial;
 
+#[cfg(feature = "direct-serialport")]
+mod direct_serialport;
+
 mod file;
 
 /// A MAVLink connection
@@ -87,14 +90,24 @@ pub fn connect<M: Message>(address: &str) -> io::Result<Box<dyn MavConnection<M>
         {
             protocol_err
         }
-    } else if cfg!(feature = "direct-serial") && address.starts_with("serial:") {
+    } else if address.starts_with("serial:") {
+        #[cfg(all(feature = "direct-serial", feature = "direct-serialport"))]
+        compile_error!(
+            "At most one feature of \"direct-serial\" and \"direct-serialport\" may be selected"
+        );
+        #[cfg(not(any(feature = "direct-serial", feature = "direct-serialport")))]
+        {
+            protocol_err
+        }
         #[cfg(feature = "direct-serial")]
         {
             Ok(Box::new(direct_serial::open(&address["serial:".len()..])?))
         }
-        #[cfg(not(feature = "direct-serial"))]
+        #[cfg(feature = "direct-serialport")]
         {
-            protocol_err
+            Ok(Box::new(direct_serialport::open(
+                &address["serial:".len()..],
+            )?))
         }
     } else if address.starts_with("file") {
         Ok(Box::new(file::open(&address["file:".len()..])?))
